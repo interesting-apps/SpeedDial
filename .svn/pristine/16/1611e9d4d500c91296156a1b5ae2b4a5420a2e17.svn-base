@@ -1,0 +1,463 @@
+package com.apps.interestingapps.speeddial;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.Dialog;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.database.Cursor;
+import android.database.SQLException;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.ContactsContract;
+import android.util.Log;
+import android.view.ContextMenu;
+import android.view.ContextMenu.ContextMenuInfo;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.AdapterView.AdapterContextMenuInfo;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.ListView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.apps.interestingapps.speeddial.common.ContactDisplayAdapter;
+import com.apps.interestingapps.speeddial.common.DatabaseHelper;
+import com.apps.interestingapps.speeddial.common.PhoneNumberDialogAdapter;
+import com.apps.interestingapps.speeddial.common.SpeedDialConstants;
+import com.apps.interestingapps.speeddial.common.SpeedDialNumberComparator;
+
+public class SpeedDialActivity extends Activity {
+
+	private int selectedItemNumber = -1;
+	private List<String> allPhoneNumbers = null;
+	private String contactName = null;
+	private int speedDialNumber = -1;
+	private DatabaseHelper databaseHelper;
+	private ArrayAdapter<SpeedDialContact> contactsAdapter;
+	private int currentSpeedDialNumber = 4;
+	private boolean speedDialNumberPresent = false;
+
+	@Override
+	public void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.contact_display_view);
+
+		databaseHelper = DatabaseHelper.getInstance(this);
+		/*
+		 * Open the database in Read mode. This is used to call onCreate method.
+		 */
+		databaseHelper.getReadableDatabase();
+		try {
+			databaseHelper.openDatabase();
+		} catch (SQLException sqle) {
+			throw sqle;
+		}
+		ListView listView = (ListView) findViewById(R.id.contactList);
+		List<SpeedDialContact> allContactsList = databaseHelper.getAllValues();
+		Collections.sort(allContactsList, new SpeedDialNumberComparator());
+		Log.i(this.getLocalClassName(), "Total records: "
+				+ allContactsList.size());
+		contactsAdapter = new ContactDisplayAdapter(this, allContactsList);
+		listView.setAdapter(contactsAdapter);
+		registerForContextMenu(listView);
+	}
+
+	@Override
+	public void onDestroy() {
+		super.onDestroy();
+		if (databaseHelper != null) {
+			databaseHelper.close();
+		}
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		MenuInflater menuInflater = getMenuInflater();
+		menuInflater.inflate(R.menu.options_menu_view, menu);
+		return true;
+	}
+
+	private void pickContact() {
+		Intent pickContactIntent = new Intent(Intent.ACTION_PICK, Uri
+				.parse("content://contacts"));
+		/*
+		 * Show user only contacts w/ phone numbers
+		 */
+		pickContactIntent.setType(ContactsContract.Contacts.CONTENT_TYPE);
+
+		startActivityForResult(pickContactIntent,
+				SpeedDialConstants.PICK_CONTACT_REQUEST);
+	}
+
+	/**
+	 * Method to get the results of the activity and perform actions according to
+	 * the requestCode
+	 */
+	@Override
+	protected void
+			onActivityResult(int requestCode, int resultCode, Intent data) {
+		// Check which request it is that we're responding to
+
+		switch (requestCode) {
+		case SpeedDialConstants.PICK_CONTACT_REQUEST:
+			if (resultCode == Activity.RESULT_OK) {
+				Uri contactData = data.getData();
+				Cursor selectedContactCursor = managedQuery(contactData, null,
+						null, null, null);
+				startManagingCursor(selectedContactCursor);
+				allPhoneNumbers = retrieveAllPhoneNumbers(selectedContactCursor);
+				if (allPhoneNumbers.size() == 1) {
+					askUserToEnterSpeedDialNumber(0);
+				} else if (allPhoneNumbers.size() > 1) {
+					askUserToSelectPhoneNumber(allPhoneNumbers);
+				} else {
+					Log.i(this.getLocalClassName(),
+							"No phone numbers found for the contact");
+					resetAllFields();
+				}
+			}
+			break;
+		default:
+			Log.e(this.getLocalClassName(),
+					"Unexpected request code returned by activity");
+		}
+	}
+
+	/**
+	 * Method to retrieve all the phone numbers from a selected contact
+	 *
+	 * @param selectedContactCursor
+	 * @return
+	 */
+	private List<String> retrieveAllPhoneNumbers(Cursor selectedContactCursor) {
+		List<String> allPhoneNumbers = new ArrayList<String>();
+
+		if (selectedContactCursor.moveToFirst()) {
+			String id = selectedContactCursor.getString(selectedContactCursor
+					.getColumnIndexOrThrow(ContactsContract.Contacts._ID));
+			String hasPhone = selectedContactCursor
+					.getString(selectedContactCursor
+							.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER));
+
+			if (hasPhone.equalsIgnoreCase("1")) {
+				Cursor contactCursor = getContentResolver().query(
+						ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+						null,
+						ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = "
+								+ id, null, null);
+				Log.i(this.getLocalClassName(), "Total phone numbers: "
+						+ contactCursor.getCount());
+				while (contactCursor.moveToNext()) {
+					String phoneNumber = contactCursor.getString(contactCursor
+							.getColumnIndex("data1"));
+					allPhoneNumbers.add(phoneNumber);
+				}
+				contactCursor.close();
+			}
+
+			contactName = selectedContactCursor.getString(selectedContactCursor
+					.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME));
+		}
+
+		return allPhoneNumbers;
+	}
+
+	/**
+	 * A method to create a dialog to ask the use to select 1 number out of many
+	 * phone numbers a contact may have
+	 *
+	 * @param phoneNumbers
+	 * @return
+	 */
+	private void askUserToSelectPhoneNumber(List<String> phoneNumbers) {
+		AlertDialog.Builder builder = new AlertDialog.Builder(
+				SpeedDialActivity.this);
+		builder.setTitle(R.string.title_pick_phone_number);
+		final String[] phoneNumberArray = phoneNumbers.toArray(new String[0]);
+		ArrayAdapter<String> adapter = new PhoneNumberDialogAdapter(this,
+				phoneNumberArray);
+		PhoneNumberDilaogItemListener dialogListener = new PhoneNumberDilaogItemListener();
+		builder.setAdapter(adapter, dialogListener);
+		AlertDialog alert = builder.create();
+
+		alert.setButton(getResources().getString(R.string.cancel_button_string),
+				new CancelDilaogButtonListener());
+		alert.show();
+	}
+
+	/**
+	 * Class to implement the onClick action to store the list item number
+	 * selected by user on Select Phone number dialog
+	 */
+	private class PhoneNumberDilaogItemListener implements
+			DialogInterface.OnClickListener {
+		public void onClick(DialogInterface dialog, int item) {
+			dialog.dismiss();
+			askUserToEnterSpeedDialNumber(item);
+		}
+	}
+
+	/**
+	 * Class to implement the onClick action when the Cancel button on the select
+	 * phone number dialog is pressed
+	 */
+	private class CancelDilaogButtonListener implements
+			DialogInterface.OnClickListener {
+		public void onClick(DialogInterface dialog, int id) {
+			/*
+			 * if this button is clicked, just close the dialog box and do nothing
+			 */
+			resetAllFields();
+			dialog.cancel();
+		}
+	}
+
+	/**
+	 * Save the selected number in database. Checks if the number is already
+	 * associated to a speed dial number, or the selected speed dial number
+	 * already has another phone number associated to it
+	 *
+	 * @param selectedPhoneNumberIndex
+	 *           The index representing the phone number that the use wants to
+	 *           set the current speed dial entry for
+	 * @param speedDialNumber
+	 *           The speedDialNumber selected by the user
+	 * @return The new SpeedDialContact object if a new record is created, null
+	 *         otherwise
+	 */
+	private SpeedDialContact
+			saveSelectedPhoneNumber(int selectedPhoneNumberIndex,
+					int speedDialNumber) {
+		SpeedDialContact newContact = null;
+		if (isDataValidForAdding(selectedPhoneNumberIndex, speedDialNumber)) {
+			newContact = databaseHelper.addRecord(contactName, allPhoneNumbers
+					.get(selectedPhoneNumberIndex), speedDialNumber);
+			contactsAdapter.add(newContact);
+			contactsAdapter.notifyDataSetChanged();
+			allPhoneNumbers.clear();
+		}
+		return newContact;
+	}
+
+	/**
+	 * Performs a check whether the selected phone is associated to a speed dial
+	 * number or if the selected speed dial number has a phone number associated
+	 * to it
+	 *
+	 * @param selectedPhoneNumberIndex
+	 * @param speedDialNumber
+	 * @return true if the selected data satisfies the validity criteria
+	 */
+	private boolean isDataValidForAdding(int selectedPhoneNumberIndex,
+			int speedDialNumber) {
+		if (allPhoneNumbers == null) {
+			Log.e(this.getLocalClassName(), "allPhoneNumbers is null");
+			return false;
+		}
+
+		if (allPhoneNumbers.size() == 0) {
+			Log.e(this.getLocalClassName(), "allPhoneNumbers size is 0");
+			return false;
+		}
+
+		if (selectedPhoneNumberIndex < 0) {
+			Log.e(this.getLocalClassName(),
+					"Selected phone number Index is negative:"
+							+ selectedPhoneNumberIndex);
+			return false;
+		}
+
+		if (databaseHelper.getRecordForSpeedDialNumber(speedDialNumber) != null) {
+			Toast.makeText(
+					SpeedDialActivity.this,
+					"A Phone number with speed dial number"
+							+ speedDialNumber
+							+ " is already in database. Choose another speed dial number",
+					Toast.LENGTH_LONG).show();
+			speedDialNumberPresent = true;
+			return false;
+		}
+
+		if (databaseHelper.getRecordForPhoneNumber(allPhoneNumbers
+				.get(selectedPhoneNumberIndex)) != null) {
+			Toast.makeText(
+					SpeedDialActivity.this,
+					"Phone number " + allPhoneNumbers.get(selectedPhoneNumberIndex)
+							+ " is already associated with a speed dial number",
+					Toast.LENGTH_LONG).show();
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * Method to handle the click events of menu items selected
+	 */
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		switch (item.getItemId()) {
+		case R.id.menu_add:
+			pickContact();
+			return true;
+		case 2:
+			return true;
+		case 3:
+			return true;
+		}
+		return super.onOptionsItemSelected(item);
+	}
+
+	private void resetAllFields() {
+		allPhoneNumbers = null;
+		selectedItemNumber = -1;
+		speedDialNumber = -1;
+		contactName = null;
+		speedDialNumberPresent = false;
+	}
+
+	/**
+	 * Method to create a context menu when a list item pressed for long
+	 */
+	public void onCreateContextMenu(ContextMenu menu,
+			View v,
+			ContextMenuInfo menuInfo) {
+		super.onCreateContextMenu(menu, v, menuInfo);
+		MenuInflater inflater = getMenuInflater();
+		inflater.inflate(R.menu.contact_context_menu, menu);
+	}
+
+	/**
+	 * Method to perform an action when an item on the context menu list is
+	 * clicked
+	 */
+	@Override
+	public boolean onContextItemSelected(MenuItem item) {
+		AdapterContextMenuInfo info = (AdapterContextMenuInfo) item.getMenuInfo();
+		switch (item.getItemId()) {
+		case R.id.deleteMenuItem:
+			SpeedDialContact selectedContact = contactsAdapter
+					.getItem(info.position);
+			if (!databaseHelper.deleteRecord(selectedContact.get_id())) {
+				Log.e(this.getLocalClassName(),
+						"Unable to delete the record with Id: "
+								+ selectedContact.get_id() + " and name: "
+								+ selectedContact.getName());
+			} else {
+				Log.i(this.getLocalClassName(),
+						"Successfully deleted the record with Id "
+								+ selectedContact.get_id());
+			}
+			contactsAdapter.remove(selectedContact);
+			contactsAdapter.notifyDataSetChanged();
+			return true;
+		default:
+			return super.onContextItemSelected(item);
+		}
+	}
+
+	/**
+	 * Creates a new dialog to ask the use to enter the speed dial number for the
+	 * selected phone number
+	 *
+	 * @param selectedPhoneNumberIndex
+	 */
+	private void
+			askUserToEnterSpeedDialNumber(final int selectedPhoneNumberIndex) {
+		/*
+		 * If the phone number is already present in the database, notify the user
+		 * and do not ask for speed dial number
+		 */
+		SpeedDialContact contactInDatabase = databaseHelper
+				.getRecordForPhoneNumber(allPhoneNumbers
+						.get(selectedPhoneNumberIndex));
+		if (contactInDatabase != null) {
+			Toast.makeText(
+					SpeedDialActivity.this,
+					"Phone number " + contactInDatabase.getPhoneNumber()
+							+ " is already associated with a speed dial number "
+							+ contactInDatabase.getSpeedDialNumber(),
+					Toast.LENGTH_LONG).show();
+			return;
+		}
+		final Dialog dialog = new Dialog(SpeedDialActivity.this);
+		dialog.setTitle(R.string.title_select_speed_dial_number);
+		LayoutInflater inflater = getLayoutInflater();
+
+		final View dialogView = inflater.inflate(
+				R.layout.select_speed_dial_number_dialog, null);
+		dialog.setContentView(dialogView);
+
+		TextView contactNameView = (TextView) dialogView
+				.findViewById(R.id.sdn_dialog_contact_name);
+		TextView phoneNumberView = (TextView) dialogView
+				.findViewById(R.id.sdn_dialog_phone_number);
+		final EditText speedDialNumberText = (EditText) dialogView
+				.findViewById(R.id.sdn_dialog_speed_dial_number);
+		contactNameView.setText(contactName);
+		phoneNumberView.setText(allPhoneNumbers.get(selectedPhoneNumberIndex));
+
+		Button okButton = (Button) dialogView
+				.findViewById(R.id.sdn_dialog_ok_button);
+		okButton.setOnClickListener(new AssignSpeedDialNumberOkButtonListener(
+				dialog, speedDialNumberText, selectedPhoneNumberIndex));
+		Button cancelButton = (Button) dialogView
+				.findViewById(R.id.sdn_dialog_cancel_button);
+		cancelButton.setOnClickListener(new OnClickListener() {
+			public void onClick(View v) {
+				dialog.dismiss();
+				resetAllFields();
+			}
+		});
+		dialog.show();
+	}
+
+	/**
+	 * Implements listener for Ok Button for SelectSpeedDialNumberDialog
+	 */
+	private class AssignSpeedDialNumberOkButtonListener implements
+			OnClickListener {
+		private Dialog dialog;
+		private EditText speedDialNumberText;
+		private int selectedPhoneNumberIndex;
+
+		public AssignSpeedDialNumberOkButtonListener(Dialog dialog,
+				EditText speedDialNumberText,
+				int selectedPhoneNumberIndex) {
+			this.dialog = dialog;
+			this.speedDialNumberText = speedDialNumberText;
+			this.selectedPhoneNumberIndex = selectedPhoneNumberIndex;
+		}
+
+		public void onClick(View v) {
+			int speedDialNumber;
+			try {
+				speedDialNumber = Integer.parseInt(speedDialNumberText.getText()
+						.toString());
+				if (speedDialNumber < 2) {
+					throw new Exception("Entered number is " + speedDialNumber);
+				}
+				SpeedDialContact newContact = saveSelectedPhoneNumber(
+						selectedPhoneNumberIndex, speedDialNumber);
+				if (newContact != null || !speedDialNumberPresent) {
+					dialog.dismiss();
+					resetAllFields();
+				}
+			} catch (Exception e) {
+				Toast.makeText(SpeedDialActivity.this,
+						"Please enter a number greater than 1.", Toast.LENGTH_LONG)
+						.show();
+			}
+		}
+	}
+}

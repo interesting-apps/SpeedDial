@@ -1,0 +1,47 @@
+<resources xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <string name="app_name">SpeedDial</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="menu_settings">Settings</string>
+    <string name="title_activity_speed_dial">Speed Dial</string>
+    <string name="cancel_button_string">Cancel</string>
+    <string name="add_contact_string">Add Contact</string>
+    <string name="delete">Delete</string>
+    <string name="hint_speed_dial_number_dialog">Speed Dial Number</string>
+    <string name="title_pick_phone_number">Pick a phone number</string>
+    <string name="title_select_speed_dial_number">Assign Speed Dial Number</string>
+    <string name="ok_button_string">OK</string>
+    <string name="edit">Edit</string>
+    <string name="edit_speed_dial_number_string">Edit Speed Dial Number</string>
+    <string name="edit_phone_number_string">Edit Associated Phone Number</string>
+    <string name="title_edit_contact">Select operation</string>
+    <string name="dial_number_hint_string">Speed Dial Number</string>
+    <string name="dial_number_button_string">Dial</string>
+    <string name="speed_dial_number_string">Speed Dial Number</string>
+    <string name="doesnt_exist_string">doesn\'t exist. What would you like to do?</string>
+    <string name="contact_name_text_view_name">Name: </string>
+    <string name="phone_number_text_view_name">Phone Number: </string>
+    <string name="empty_speed_dial_number_list">No Speed Dial Numbers assigned.\nPress "Menu" to add contacts.</string>
+    <string name="title_override_dialog">Override?</string>
+    <string name="message_override_speed_dial_number_dialog">This Speed Dial Number is already associated with a phone number. Do you want to override the entry?</string>
+    <string name="message_override_phone_number_dialog">This Phone Number is already associated with a Speed Dial Number. Do you want to override the entry?</string>
+    <string name="message_override_speed_dial_and_phone_number_dialog">Both the Speed Dial Number and Phone Number are already present. Do you want to override the entries?</string>
+    <string name="yes_button_string">Yes</string>
+    <string name="no_button_string">No</string>
+    <string name="make_call_string">Dial</string>
+    <string name="list_view_row_divider_description">Row divider</string>
+    <string name="list_view_invisible_row_divider_description">Invisible</string>
+    <string name="save_button_string">Save</string>
+    <string name="table_and_image_description">Invisible Table image</string>
+
+    <string-array name="edit_menu_items">
+        <item>@string/edit_speed_dial_number_string</item>
+        <item>@string/edit_phone_number_string</item>
+    </string-array>
+    
+    <string-array name="message_speed_dial_number_not_exist">
+        <item>@string/speed_dial_number_string</item>
+        <item>@string/doesnt_exist_string</item>
+    </string-array>
+
+</resources>

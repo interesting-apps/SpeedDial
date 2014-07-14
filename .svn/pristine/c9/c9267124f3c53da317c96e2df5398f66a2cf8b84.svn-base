@@ -1,0 +1,14 @@
+<resources>
+
+    <string name="app_name">SpeedDial</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="menu_settings">Settings</string>
+    <string name="title_activity_speed_dial">SpeedDialActivity</string>
+    <string name="cancel_button_string">Cancel</string>
+    <string name="add_contact_string">Add Contact</string>
+	<string name="delete">Delete</string>
+	<string name="hint_speed_dial_number_dialog">Enter unique Speed Dial Number</string>
+	<string name="title_pick_phone_number">Pick a phone number:</string>
+	<string name="title_select_speed_dial_number">Select a Speed Dial Number:</string>
+	<string name="ok_button_string">OK</string>
+</resources>

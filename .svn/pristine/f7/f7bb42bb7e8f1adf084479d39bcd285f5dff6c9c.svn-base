@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <TextView
+        android:id="@+id/sdn_dialog_contact_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="10dp" />
+
+    <TextView
+        android:id="@+id/sdn_dialog_phone_number"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/sdn_dialog_contact_name"
+        android:textSize="8dp" />
+
+    <EditText
+        android:id="@+id/sdn_dialog_speed_dial_number"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/sdn_dialog_phone_number"
+        android:hint="@string/hint_speed_dial_number_dialog"
+        android:inputType="number"
+        android:textSize="10dp" />
+
+    <Button
+        android:id="@+id/sdn_dialog_ok_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/sdn_dialog_speed_dial_number"
+        android:text="@string/ok_button_string"
+        android:textSize="10dp" />
+
+    <Button
+        android:id="@+id/sdn_dialog_cancel_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/sdn_dialog_speed_dial_number"
+        android:layout_toRightOf="@+id/sdn_dialog_ok_button"
+        android:text="@string/cancel_button_string"
+        android:textSize="10dp" />
+
+</RelativeLayout>
