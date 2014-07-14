@@ -46,8 +46,8 @@ import com.apps.interestingapps.speeddial.common.DatabaseHelper;
 import com.apps.interestingapps.speeddial.common.Operation;
 import com.apps.interestingapps.speeddial.common.PhoneNumberDialogAdapter;
 import com.apps.interestingapps.speeddial.common.SpeedDialConstants;
-import com.google.ads.AdRequest;
-import com.google.ads.AdView;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
 
 public class SpeedDialActivity extends Activity {
 
@@ -90,8 +90,7 @@ public class SpeedDialActivity extends Activity {
 		}
 		ListView listView = (ListView) findViewById(R.id.contactList);
 		listView.setCacheColorHint(getResources().getColor(R.color.Black));
-		final List<SpeedDialContact> allContactsList = databaseHelper
-				.getAllValues();
+		final List<SpeedDialContact> allContactsList = databaseHelper.getAllValues();
 		TextView emptySpeedDialNumberList = (TextView) findViewById(R.id.emptySpeedDialNumberList);
 		if (allContactsList.size() == 0) {
 			Log.i(this.getLocalClassName(), "List is 0 at on Create");
@@ -100,8 +99,8 @@ public class SpeedDialActivity extends Activity {
 			emptySpeedDialNumberList.setVisibility(View.GONE);
 		}
 		Collections.sort(allContactsList);
-		Log.i(this.getLocalClassName(), "Total records: "
-				+ allContactsList.size());
+		Log.i(this.getLocalClassName(),
+				"Total records: " + allContactsList.size());
 		contactsAdapter = new ContactDisplayAdapter(this, allContactsList);
 		listView.setAdapter(contactsAdapter);
 		listView.setOnItemClickListener(new OnItemClickListener() {
@@ -123,10 +122,26 @@ public class SpeedDialActivity extends Activity {
 			}
 		});
 
+		/*
+		 * Android 4.0 device id: 64FFE02AABF389054771188E3CF39B63
+		 *
+		 * Sony Xperia X10 device id: 080A4A2357E9089FDAB344624A7181F5
+		 *
+		 * Nexus 4 - Varun's - device id: 7A107DF0AB377695D8973481767E5A76
+		 */
 		adview = (AdView) findViewById(R.id.adView);
-		AdRequest re = new AdRequest();
-		// re.setTesting(true);
-		adview.loadAd(re);
+
+		// /*
+		// * TODO: Uncomment it while running tests. Comment this part while
+		// * creating APK for production
+		// */
+		// AdRequest adRequest = new
+		// AdRequest.Builder().addTestDevice(AdRequest.DEVICE_ID_EMULATOR)
+		// .addTestDevice("7A107DF0AB377695D8973481767E5A76")
+		// .build();
+
+		AdRequest adRequest = new AdRequest.Builder().build();
+		adview.loadAd(adRequest);
 		showBuyAppDialog();
 		if (shouldRateDialogShown) {
 			showRateDialog();
@@ -158,15 +173,23 @@ public class SpeedDialActivity extends Activity {
 	}
 
 	private void pickContact() {
-		Intent pickContactIntent = new Intent(Intent.ACTION_PICK, Uri
-				.parse("content://contacts"));
+		Intent pickContactIntent = new Intent(Intent.ACTION_PICK,
+				ContactsContract.Contacts.CONTENT_URI);
+
 		/*
 		 * Show user only contacts w/ phone numbers
 		 */
 		pickContactIntent.setType(ContactsContract.Contacts.CONTENT_TYPE);
 
-		startActivityForResult(pickContactIntent,
-				SpeedDialConstants.PICK_CONTACT_REQUEST);
+		if (pickContactIntent.resolveActivity(getPackageManager()) != null) {
+			startActivityForResult(pickContactIntent,
+					SpeedDialConstants.PICK_CONTACT_REQUEST);
+		} else {
+			Toast.makeText(this,
+					"Sorry, no app to provide contacts list is currently available.",
+					Toast.LENGTH_LONG)
+					.show();
+		}
 	}
 
 	/**
@@ -182,8 +205,11 @@ public class SpeedDialActivity extends Activity {
 		case SpeedDialConstants.PICK_CONTACT_REQUEST:
 			if (resultCode == Activity.RESULT_OK) {
 				Uri contactData = data.getData();
-				Cursor selectedContactCursor = managedQuery(contactData, null,
-						null, null, null);
+				Cursor selectedContactCursor = managedQuery(contactData,
+						null,
+						null,
+						null,
+						null);
 				startManagingCursor(selectedContactCursor);
 				allPhoneNumbers = retrieveAllPhoneNumbers(selectedContactCursor);
 				if (allPhoneNumbers.size() == 1) {
@@ -191,10 +217,11 @@ public class SpeedDialActivity extends Activity {
 					if (currentOperation == Operation.CREATE_NEW_COTNACT) {
 						askUserToEnterSpeedDialNumber(0);
 					} else {
-						saveSelectedPhoneNumber(0, contactSelectedForEdit
-								.getSpeedDialNumber());
+						saveSelectedPhoneNumber(0,
+								contactSelectedForEdit.getSpeedDialNumber());
 						if (phoneNumberPresent) {
-							showOverrideDialog(contactSelectedForEdit, 0,
+							showOverrideDialog(contactSelectedForEdit,
+									0,
 									contactSelectedForEdit.getSpeedDialNumber());
 						} else {
 							resetAllFields();
@@ -205,10 +232,10 @@ public class SpeedDialActivity extends Activity {
 				} else {
 					Log.i(this.getLocalClassName(),
 							"No phone numbers found for the contact");
-					Toast.makeText(
-							getApplicationContext(),
+					Toast.makeText(getApplicationContext(),
 							"The selected contact does not have any phone numbers associated with it",
-							Toast.LENGTH_LONG).show();
+							Toast.LENGTH_LONG)
+							.show();
 					resetAllFields();
 				}
 			}
@@ -221,7 +248,7 @@ public class SpeedDialActivity extends Activity {
 
 	/**
 	 * Method to retrieve all the phone numbers from a selected contact
-	 * 
+	 *
 	 * @param selectedContactCursor
 	 * @return
 	 */
@@ -229,30 +256,26 @@ public class SpeedDialActivity extends Activity {
 		List<String> allPhoneNumbers = new ArrayList<String>();
 
 		if (selectedContactCursor.moveToFirst()) {
-			String id = selectedContactCursor.getString(selectedContactCursor
-					.getColumnIndexOrThrow(ContactsContract.Contacts._ID));
-			String hasPhone = selectedContactCursor
-					.getString(selectedContactCursor
-							.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER));
+			String id = selectedContactCursor.getString(selectedContactCursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID));
+			String hasPhone = selectedContactCursor.getString(selectedContactCursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER));
 
 			if (hasPhone.equalsIgnoreCase("1")) {
-				Cursor contactCursor = getContentResolver().query(
-						ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+				Cursor contactCursor = getContentResolver().query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
 						null,
 						ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = "
-								+ id, null, null);
+								+ id,
+						null,
+						null);
 				Log.i(this.getLocalClassName(), "Total phone numbers: "
 						+ contactCursor.getCount());
 				while (contactCursor.moveToNext()) {
-					String phoneNumber = contactCursor.getString(contactCursor
-							.getColumnIndex("data1"));
+					String phoneNumber = contactCursor.getString(contactCursor.getColumnIndex("data1"));
 					allPhoneNumbers.add(phoneNumber);
 				}
 				contactCursor.close();
 			}
 
-			contactName = selectedContactCursor.getString(selectedContactCursor
-					.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME));
+			contactName = selectedContactCursor.getString(selectedContactCursor.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME));
 		}
 
 		return allPhoneNumbers;
@@ -261,13 +284,12 @@ public class SpeedDialActivity extends Activity {
 	/**
 	 * A method to create a dialog to ask the use to select 1 number out of many
 	 * phone numbers a contact may have
-	 * 
+	 *
 	 * @param phoneNumbers
 	 * @return
 	 */
 	private void askUserToSelectPhoneNumber(List<String> phoneNumbers) {
-		AlertDialog.Builder builder = new AlertDialog.Builder(
-				SpeedDialActivity.this);
+		AlertDialog.Builder builder = new AlertDialog.Builder(SpeedDialActivity.this);
 		builder.setTitle(R.string.title_pick_phone_number);
 		final String[] phoneNumberArray = phoneNumbers.toArray(new String[0]);
 		ArrayAdapter<String> adapter = new PhoneNumberDialogAdapter(this,
@@ -297,8 +319,8 @@ public class SpeedDialActivity extends Activity {
 			if (currentOperation == Operation.CREATE_NEW_COTNACT) {
 				askUserToEnterSpeedDialNumber(item);
 			} else {
-				saveSelectedPhoneNumber(item, contactSelectedForEdit
-						.getSpeedDialNumber());
+				saveSelectedPhoneNumber(item,
+						contactSelectedForEdit.getSpeedDialNumber());
 				resetAllFields();
 			}
 		}
@@ -323,7 +345,7 @@ public class SpeedDialActivity extends Activity {
 	 * Save the selected number in database. Checks if the number is already
 	 * associated to a speed dial number, or the selected speed dial number
 	 * already has another phone number associated to it
-	 * 
+	 *
 	 * @param selectedPhoneNumberIndex
 	 *           The index representing the phone number that the use wants to
 	 *           set the current speed dial entry for
@@ -342,7 +364,8 @@ public class SpeedDialActivity extends Activity {
 			switch (currentOperation) {
 			case CREATE_NEW_COTNACT:
 				try {
-					newContact = addEntry(contactName, selectedPhoneNumberIndex,
+					newContact = addEntry(contactName,
+							selectedPhoneNumberIndex,
 							newSpeedDialNumber);
 				} catch (Exception e) {
 					isOperationSuccessful = false;
@@ -350,8 +373,8 @@ public class SpeedDialActivity extends Activity {
 				}
 				break;
 			case EDIT_SPEED_DIAL_NUMBER:
-				if (databaseHelper.updateSpeedDialNumber(contactSelectedForEdit
-						.getSpeedDialNumber(), newSpeedDialNumber)) {
+				if (databaseHelper.updateSpeedDialNumber(contactSelectedForEdit.getSpeedDialNumber(),
+						newSpeedDialNumber)) {
 					contactSelectedForEdit.setSpeedDialNumber(newSpeedDialNumber);
 					Log.i(this.getLocalClassName(),
 							"Successfully updated the Speed Dial number for contact "
@@ -367,8 +390,9 @@ public class SpeedDialActivity extends Activity {
 				}
 				break;
 			case EDIT_PHONE_NUMBER:
-				if (databaseHelper.updatePhoneNumber(contactSelectedForEdit
-						.getPhoneNumber(), newPhoneNumber, contactName)) {
+				if (databaseHelper.updatePhoneNumber(contactSelectedForEdit.getPhoneNumber(),
+						newPhoneNumber,
+						contactName)) {
 					contactSelectedForEdit.setPhoneNumber(newPhoneNumber);
 					contactSelectedForEdit.setName(contactName);
 					Log.i(this.getLocalClassName(),
@@ -402,7 +426,7 @@ public class SpeedDialActivity extends Activity {
 	 * Performs a check whether the selected phone is associated to a speed dial
 	 * number or if the selected speed dial number has a phone number associated
 	 * to it
-	 * 
+	 *
 	 * @param selectedPhoneNumberIndex
 	 * @param speedDialNumber
 	 * @return true if the selected data satisfies the validity criteria
@@ -449,12 +473,11 @@ public class SpeedDialActivity extends Activity {
 		 * exists
 		 */
 		if (currentOperation != Operation.EDIT_SPEED_DIAL_NUMBER
-				&& databaseHelper.getRecordForPhoneNumber(allPhoneNumbers
-						.get(selectedPhoneNumberIndex)) != null) {
+				&& databaseHelper.getRecordForPhoneNumber(allPhoneNumbers.get(selectedPhoneNumberIndex)) != null) {
 			phoneNumberPresent = true;
-			Log.i(this.getLocalClassName(), "Phone number "
-					+ allPhoneNumbers.get(selectedPhoneNumberIndex)
-					+ " is already associated with a speed dial number");
+			Log.i(this.getLocalClassName(),
+					"Phone number " + allPhoneNumbers.get(selectedPhoneNumberIndex)
+							+ " is already associated with a speed dial number");
 			result = false;
 		}
 		return result;
@@ -493,6 +516,7 @@ public class SpeedDialActivity extends Activity {
 	/**
 	 * Method to create a context menu when a list item pressed for long
 	 */
+	@Override
 	public void onCreateContextMenu(ContextMenu menu,
 			View v,
 			ContextMenuInfo menuInfo) {
@@ -511,12 +535,12 @@ public class SpeedDialActivity extends Activity {
 		switch (item.getItemId()) {
 		case R.id.deleteMenuItem:
 			currentOperation = Operation.DELETE_SPEED_DIAL_CONTACT;
-			SpeedDialContact selectedContact = contactsAdapter
-					.getItem(info.position);
+			SpeedDialContact selectedContact = contactsAdapter.getItem(info.position);
 			try {
 				deleteEntry(selectedContact);
 			} catch (Exception e) {
-				Toast.makeText(SpeedDialActivity.this, "Unable to delete record.",
+				Toast.makeText(SpeedDialActivity.this,
+						"Unable to delete record.",
 						Toast.LENGTH_LONG).show();
 			}
 			return true;
@@ -539,7 +563,7 @@ public class SpeedDialActivity extends Activity {
 	/**
 	 * Creates a new dialog to ask the use to enter the speed dial number for the
 	 * selected phone number
-	 * 
+	 *
 	 * @param selectedPhoneNumberIndex
 	 */
 	private void
@@ -549,16 +573,13 @@ public class SpeedDialActivity extends Activity {
 		dialog.setTitle(R.string.title_select_speed_dial_number);
 		LayoutInflater inflater = getLayoutInflater();
 
-		final View dialogView = inflater.inflate(
-				R.layout.select_speed_dial_number_dialog, null);
+		final View dialogView = inflater.inflate(R.layout.select_speed_dial_number_dialog,
+				null);
 		dialog.setContentView(dialogView);
 
-		TextView contactNameView = (TextView) dialogView
-				.findViewById(R.id.sdn_dialog_contact_name);
-		TextView phoneNumberView = (TextView) dialogView
-				.findViewById(R.id.sdn_dialog_phone_number);
-		final EditText speedDialNumberText = (EditText) dialogView
-				.findViewById(R.id.sdn_dialog_speed_dial_number);
+		TextView contactNameView = (TextView) dialogView.findViewById(R.id.sdn_dialog_contact_name);
+		TextView phoneNumberView = (TextView) dialogView.findViewById(R.id.sdn_dialog_phone_number);
+		final EditText speedDialNumberText = (EditText) dialogView.findViewById(R.id.sdn_dialog_speed_dial_number);
 
 		contactNameView.setText(contactName);
 		phoneNumberView.setText(allPhoneNumbers.get(selectedPhoneNumberIndex));
@@ -569,14 +590,13 @@ public class SpeedDialActivity extends Activity {
 
 		showSoftInput(speedDialNumberText, dialog.getWindow());
 
-		Button okButton = (Button) dialogView
-				.findViewById(R.id.sdn_dialog_ok_button);
-		okButton.setOnClickListener(new AssignSpeedDialNumberOkButtonListener(
-				dialog, contactSelectedForEdit, speedDialNumberText,
+		Button okButton = (Button) dialogView.findViewById(R.id.sdn_dialog_ok_button);
+		okButton.setOnClickListener(new AssignSpeedDialNumberOkButtonListener(dialog,
+				contactSelectedForEdit,
+				speedDialNumberText,
 				selectedPhoneNumberIndex));
 
-		Button cancelButton = (Button) dialogView
-				.findViewById(R.id.sdn_dialog_cancel_button);
+		Button cancelButton = (Button) dialogView.findViewById(R.id.sdn_dialog_cancel_button);
 		cancelButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
 				dialog.dismiss();
@@ -610,29 +630,29 @@ public class SpeedDialActivity extends Activity {
 		public void onClick(View v) {
 			final int enteredSpeedDialNumber;
 			try {
-				enteredSpeedDialNumber = Integer.parseInt(speedDialNumberText
-						.getText().toString());
+				enteredSpeedDialNumber = Integer.parseInt(speedDialNumberText.getText()
+						.toString());
 				if (enteredSpeedDialNumber < 1) {
 					throw new Exception("Entered number is "
 							+ enteredSpeedDialNumber);
 				}
-				SpeedDialContact newContact = saveSelectedPhoneNumber(
-						selectedPhoneNumberIndex, enteredSpeedDialNumber);
+				SpeedDialContact newContact = saveSelectedPhoneNumber(selectedPhoneNumberIndex,
+						enteredSpeedDialNumber);
 
 				if (speedDialNumberPresent || phoneNumberPresent) {
 					dialog.dismiss();
-					showOverrideDialog(contactForEdit, selectedPhoneNumberIndex,
+					showOverrideDialog(contactForEdit,
+							selectedPhoneNumberIndex,
 							enteredSpeedDialNumber);
 				}
 
 				if (newContact != null) {
 					dialog.dismiss();
 					if (currentOperation == Operation.CREATE_NEW_COTNACT) {
-						Toast.makeText(
-								SpeedDialActivity.this,
+						Toast.makeText(SpeedDialActivity.this,
 								"Successfully added an entry with speed dial number: "
-										+ enteredSpeedDialNumber, Toast.LENGTH_SHORT)
-								.show();
+										+ enteredSpeedDialNumber,
+								Toast.LENGTH_SHORT).show();
 					}
 					resetAllFields();
 				}
@@ -647,19 +667,16 @@ public class SpeedDialActivity extends Activity {
 
 	/**
 	 * Class to handle the click event of Edit radio buttons
-	 * 
+	 *
 	 * @param view
 	 */
 	private class EditRadioButtonClickListener implements
 			DialogInterface.OnClickListener {
 		public void onClick(DialogInterface dialog, int item) {
-			String[] items = getResources()
-					.getStringArray(R.array.edit_menu_items);
-			if (items[item].equals(getResources().getString(
-					R.string.edit_speed_dial_number_string))) {
+			String[] items = getResources().getStringArray(R.array.edit_menu_items);
+			if (items[item].equals(getResources().getString(R.string.edit_speed_dial_number_string))) {
 				currentOperation = Operation.EDIT_SPEED_DIAL_NUMBER;
-			} else if (items[item].equals(getResources().getString(
-					R.string.edit_phone_number_string))) {
+			} else if (items[item].equals(getResources().getString(R.string.edit_phone_number_string))) {
 				currentOperation = Operation.EDIT_PHONE_NUMBER;
 			}
 			switch (currentOperation) {
@@ -684,14 +701,14 @@ public class SpeedDialActivity extends Activity {
 	}
 
 	public void showEditOptionsRadioButtons() {
-		AlertDialog.Builder dialog = new AlertDialog.Builder(
-				SpeedDialActivity.this);
+		AlertDialog.Builder dialog = new AlertDialog.Builder(SpeedDialActivity.this);
 		dialog.setTitle(R.string.title_edit_contact);
 
-		dialog.setSingleChoiceItems(getResources().getStringArray(
-				R.array.edit_menu_items), -1, new EditRadioButtonClickListener());
-		dialog.setNegativeButton(getResources().getString(
-				R.string.cancel_button_string), new CancelDilaogButtonListener());
+		dialog.setSingleChoiceItems(getResources().getStringArray(R.array.edit_menu_items),
+				-1,
+				new EditRadioButtonClickListener());
+		dialog.setNegativeButton(getResources().getString(R.string.cancel_button_string),
+				new CancelDilaogButtonListener());
 		dialog.setOnCancelListener(new CancelDialogListener());
 		dialog.create();
 		dialog.show();
@@ -699,7 +716,7 @@ public class SpeedDialActivity extends Activity {
 
 	/**
 	 * Method to make a call to give phone number
-	 * 
+	 *
 	 * @param number
 	 * @param isSpeedDialNumber
 	 *           true if the number that is passed is a speed dial number and not
@@ -719,13 +736,13 @@ public class SpeedDialActivity extends Activity {
 			numberToDial = Long.parseLong(number);
 			if (numberToDial < 0) {
 				Toast.makeText(SpeedDialActivity.this,
-						"Please enter a positive number.", Toast.LENGTH_LONG).show();
+						"Please enter a positive number.",
+						Toast.LENGTH_LONG).show();
 				throw new Exception();
 			}
 
 			if (isSpeedDialNumber) {
-				SpeedDialContact contactForSpeedDial = databaseHelper
-						.getRecordForSpeedDialNumber(numberToDial);
+				SpeedDialContact contactForSpeedDial = databaseHelper.getRecordForSpeedDialNumber(numberToDial);
 				if (contactForSpeedDial != null) {
 					phoneNumber = contactForSpeedDial.getPhoneNumber();
 				} else {
@@ -747,7 +764,8 @@ public class SpeedDialActivity extends Activity {
 			callIntent.setData(Uri.parse("tel:" + phoneNumber));
 			startActivity(callIntent);
 		} catch (ActivityNotFoundException activityException) {
-			Log.e(this.getClass().getName(), "Cannot make a call to: " + number,
+			Log.e(this.getClass().getName(),
+					"Cannot make a call to: " + number,
 					activityException);
 		}
 
@@ -759,11 +777,9 @@ public class SpeedDialActivity extends Activity {
 	}
 
 	private void createSpeedDialNumberNotExistAlert(final String number) {
-		AlertDialog.Builder dialog = new AlertDialog.Builder(
-				SpeedDialActivity.this);
+		AlertDialog.Builder dialog = new AlertDialog.Builder(SpeedDialActivity.this);
 
-		String[] messageStrings = getResources().getStringArray(
-				R.array.message_speed_dial_number_not_exist);
+		String[] messageStrings = getResources().getStringArray(R.array.message_speed_dial_number_not_exist);
 		dialog.setMessage(messageStrings[0] + " " + number + " "
 				+ messageStrings[1]);
 		dialog.setPositiveButton(R.string.save_button_string,
@@ -774,15 +790,14 @@ public class SpeedDialActivity extends Activity {
 						pickContact();
 					}
 				});
-		dialog.setNeutralButton(getResources().getString(
-				R.string.dial_number_button_string),
+		dialog.setNeutralButton(getResources().getString(R.string.dial_number_button_string),
 				new DialogInterface.OnClickListener() {
 					public void onClick(DialogInterface dialog, int which) {
 						makeCall(number, false);
 					}
 				});
-		dialog.setNegativeButton(getResources().getString(
-				R.string.cancel_button_string), new CancelDilaogButtonListener());
+		dialog.setNegativeButton(getResources().getString(R.string.cancel_button_string),
+				new CancelDilaogButtonListener());
 		dialog.setOnCancelListener(new CancelDialogListener());
 		dialog.create();
 		dialog.show();
@@ -817,42 +832,38 @@ public class SpeedDialActivity extends Activity {
 					deleteEntry(contactForEdit);
 				}
 				if (speedDialNumberPresent && phoneNumberPresent) {
-					SpeedDialContact existingContactForSpeedDialNumber = databaseHelper
-							.getRecordForSpeedDialNumber(enteredSpeedDialNumber);
+					SpeedDialContact existingContactForSpeedDialNumber = databaseHelper.getRecordForSpeedDialNumber(enteredSpeedDialNumber);
 					if (existingContactForSpeedDialNumber != null) {
 						deleteEntry(existingContactForSpeedDialNumber);
 					}
-					SpeedDialContact existingContactForPhoneNumber = databaseHelper
-							.getRecordForPhoneNumber(allPhoneNumbers
-									.get(selectedPhoneNumberIndex));
+					SpeedDialContact existingContactForPhoneNumber = databaseHelper.getRecordForPhoneNumber(allPhoneNumbers.get(selectedPhoneNumberIndex));
 					if (existingContactForPhoneNumber != null) {
 						deleteEntry(existingContactForPhoneNumber);
 					}
 				} else if (speedDialNumberPresent) {
-					existingContact = databaseHelper
-							.getRecordForSpeedDialNumber(enteredSpeedDialNumber);
+					existingContact = databaseHelper.getRecordForSpeedDialNumber(enteredSpeedDialNumber);
 					if (existingContact != null) {
 						deleteEntry(existingContact);
 					}
 				} else if (phoneNumberPresent) {
-					existingContact = databaseHelper
-							.getRecordForPhoneNumber(allPhoneNumbers
-									.get(selectedPhoneNumberIndex));
+					existingContact = databaseHelper.getRecordForPhoneNumber(allPhoneNumbers.get(selectedPhoneNumberIndex));
 					if (existingContact != null) {
 						deleteEntry(existingContact);
 					}
 				}
-				addEntry(contactName, selectedPhoneNumberIndex,
+				addEntry(contactName,
+						selectedPhoneNumberIndex,
 						enteredSpeedDialNumber);
 
 				if (currentOperation == Operation.CREATE_NEW_COTNACT) {
-					Toast.makeText(
-							SpeedDialActivity.this,
+					Toast.makeText(SpeedDialActivity.this,
 							"Successfully added an entry with speed dial number: "
-									+ enteredSpeedDialNumber, Toast.LENGTH_SHORT).show();
+									+ enteredSpeedDialNumber,
+							Toast.LENGTH_SHORT).show();
 				}
 			} catch (Exception e) {
-				Toast.makeText(SpeedDialActivity.this, "Error in editing record.",
+				Toast.makeText(SpeedDialActivity.this,
+						"Error in editing record.",
 						Toast.LENGTH_LONG).show();
 				e.printStackTrace();
 			}
@@ -862,7 +873,7 @@ public class SpeedDialActivity extends Activity {
 
 	/**
 	 * Method to delete a record from database and the contactsAdapter
-	 * 
+	 *
 	 * @param contactToDelete
 	 * @throws Exception
 	 */
@@ -888,7 +899,7 @@ public class SpeedDialActivity extends Activity {
 
 	/**
 	 * Method to add an entry to database and contactsAdapter
-	 * 
+	 *
 	 * @param name
 	 * @param phoneNumberIndex
 	 * @param speedDialNumber
@@ -899,7 +910,8 @@ public class SpeedDialActivity extends Activity {
 			int phoneNumberIndex,
 			int speedDialNumber) throws Exception {
 		SpeedDialContact newContact = databaseHelper.addRecord(name,
-				allPhoneNumbers.get(phoneNumberIndex), speedDialNumber);
+				allPhoneNumbers.get(phoneNumberIndex),
+				speedDialNumber);
 		if (newContact == null) {
 			throw new Exception("Error while adding record");
 		}
@@ -913,27 +925,23 @@ public class SpeedDialActivity extends Activity {
 	private void showOverrideDialog(SpeedDialContact contactForEdit,
 			int selectedPhoneNumberIndex,
 			int enteredSpeedDialNumber) {
-		AlertDialog.Builder overrideDialog = new AlertDialog.Builder(
-				SpeedDialActivity.this);
+		AlertDialog.Builder overrideDialog = new AlertDialog.Builder(SpeedDialActivity.this);
 
-		overrideDialog.setTitle(getResources().getString(
-				R.string.title_override_dialog));
+		overrideDialog.setTitle(getResources().getString(R.string.title_override_dialog));
 		if (speedDialNumberPresent && phoneNumberPresent) {
-			overrideDialog.setMessage(getResources().getString(
-					R.string.message_override_speed_dial_and_phone_number_dialog));
+			overrideDialog.setMessage(getResources().getString(R.string.message_override_speed_dial_and_phone_number_dialog));
 		} else if (speedDialNumberPresent) {
-			overrideDialog.setMessage(getResources().getString(
-					R.string.message_override_speed_dial_number_dialog));
+			overrideDialog.setMessage(getResources().getString(R.string.message_override_speed_dial_number_dialog));
 		} else if (phoneNumberPresent) {
-			overrideDialog.setMessage(getResources().getString(
-					R.string.message_override_phone_number_dialog));
+			overrideDialog.setMessage(getResources().getString(R.string.message_override_phone_number_dialog));
 		}
 
-		overrideDialog.setPositiveButton(getResources().getString(
-				R.string.yes_button_string), new OverrideYesButtonListener(
-				contactForEdit, selectedPhoneNumberIndex, enteredSpeedDialNumber));
-		overrideDialog.setNegativeButton(getResources().getString(
-				R.string.no_button_string), new CancelDilaogButtonListener());
+		overrideDialog.setPositiveButton(getResources().getString(R.string.yes_button_string),
+				new OverrideYesButtonListener(contactForEdit,
+						selectedPhoneNumberIndex,
+						enteredSpeedDialNumber));
+		overrideDialog.setNegativeButton(getResources().getString(R.string.no_button_string),
+				new CancelDilaogButtonListener());
 		overrideDialog.setOnCancelListener(new CancelDialogListener());
 		overrideDialog.create();
 		overrideDialog.show();
@@ -951,27 +959,26 @@ public class SpeedDialActivity extends Activity {
 	}
 
 	private void showBuyAppDialog() {
-		SharedPreferences prefs = getSharedPreferences(
-				SpeedDialConstants.PREFERENCES_FILE_NAME, 0);
-		if (prefs.getBoolean(getResources().getString(
-				R.string.never_download_again_preference_string), false)) {
+		SharedPreferences prefs = getSharedPreferences(SpeedDialConstants.PREFERENCES_FILE_NAME,
+				0);
+		if (prefs.getBoolean(getResources().getString(R.string.never_download_again_preference_string),
+				false)) {
 			return;
 		}
 		SharedPreferences.Editor editor = prefs.edit();
-		editor.putBoolean(getResources().getString(
-				R.string.never_download_again_preference_string), false);
+		editor.putBoolean(getResources().getString(R.string.never_download_again_preference_string),
+				false);
 		editor.commit();
 		// Increment launch counter
-		long launchCount = prefs.getLong(getResources().getString(
-				R.string.download_launch_count_preference_string), 0) + 1;
+		long launchCount = prefs.getLong(getResources().getString(R.string.download_launch_count_preference_string),
+				0) + 1;
 
-		if (launchCount >= getResources().getInteger(
-				R.integer.download_number_of_launches)) {
-			shouldRateDialogShown = false ;
+		if (launchCount >= getResources().getInteger(R.integer.download_number_of_launches)) {
+			shouldRateDialogShown = false;
 			showBuyAppDialog(SpeedDialActivity.this, editor);
 		} else {
-			editor.putLong(getResources().getString(
-					R.string.download_launch_count_preference_string), launchCount);
+			editor.putLong(getResources().getString(R.string.download_launch_count_preference_string),
+					launchCount);
 			editor.commit();
 		}
 	}
@@ -997,36 +1004,33 @@ public class SpeedDialActivity extends Activity {
 				 * the user has rated the App, he/she can then click on never rate
 				 * again to stop the dialog to appear.
 				 */
-				editor.putLong(getResources().getString(
-						R.string.download_launch_count_preference_string), (-1)
-						* getResources().getInteger(
-								R.integer.download_number_of_launches));
+				editor.putLong(getResources().getString(R.string.download_launch_count_preference_string),
+						(-1)
+								* getResources().getInteger(R.integer.download_number_of_launches));
 				editor.commit();
-				mContext.startActivity(new Intent(Intent.ACTION_VIEW, Uri
-						.parse("market://details?id="
+				mContext.startActivity(new Intent(Intent.ACTION_VIEW,
+						Uri.parse("market://details?id="
 								+ SpeedDialConstants.WIDGET_APP_PACKAGE)));
 				dialog.dismiss();
 			}
 		});
 
-		Button rateAppLaterButton = (Button) dialogView
-				.findViewById(R.id.buyAppLaterButton);
+		Button rateAppLaterButton = (Button) dialogView.findViewById(R.id.buyAppLaterButton);
 		rateAppLaterButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
-				editor.putLong(getResources().getString(
-						R.string.download_launch_count_preference_string), 0);
+				editor.putLong(getResources().getString(R.string.download_launch_count_preference_string),
+						0);
 				editor.commit();
 				dialog.dismiss();
 			}
 		});
 
-		Button neverShowAgainButton = (Button) dialogView
-				.findViewById(R.id.neverDownloadButton);
+		Button neverShowAgainButton = (Button) dialogView.findViewById(R.id.neverDownloadButton);
 		neverShowAgainButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
 				if (editor != null) {
-					editor.putBoolean(getResources().getString(
-							R.string.never_download_again_preference_string), true);
+					editor.putBoolean(getResources().getString(R.string.never_download_again_preference_string),
+							true);
 					editor.commit();
 				}
 				dialog.dismiss();
@@ -1034,41 +1038,40 @@ public class SpeedDialActivity extends Activity {
 		});
 		dialog.show();
 	}
-	
+
 	/**
 	 * Update the launch count and show rate dialog, if the count equals the
 	 * preset value
 	 */
 	private void showRateDialog() {
 		shouldRateDialogShown = false;
-		SharedPreferences prefs = getSharedPreferences(
-				SpeedDialConstants.PREFERENCES_FILE_NAME, 0);
-		if (prefs.getBoolean(getResources().getString(
-				R.string.never_show_again_preference_string), false)) {
+		SharedPreferences prefs = getSharedPreferences(SpeedDialConstants.PREFERENCES_FILE_NAME,
+				0);
+		if (prefs.getBoolean(getResources().getString(R.string.never_show_again_preference_string),
+				false)) {
 			return;
 		}
 		SharedPreferences.Editor editor = prefs.edit();
-		editor.putBoolean(getResources().getString(
-				R.string.never_show_again_preference_string), false);
+		editor.putBoolean(getResources().getString(R.string.never_show_again_preference_string),
+				false);
 		editor.commit();
 		// Increment launch counter
-		long launchCount = prefs.getLong(getResources().getString(
-				R.string.launch_count_preference_string), 0) + 1;
+		long launchCount = prefs.getLong(getResources().getString(R.string.launch_count_preference_string),
+				0) + 1;
 		Log.i(this.getLocalClassName(), "Number of Launches = "
 				+ getResources().getInteger(R.integer.number_of_launches));
-		if (launchCount >= getResources()
-				.getInteger(R.integer.number_of_launches)) {
+		if (launchCount >= getResources().getInteger(R.integer.number_of_launches)) {
 			showRateDialog(SpeedDialActivity.this, editor);
 		} else {
-			editor.putLong(getResources().getString(
-					R.string.launch_count_preference_string), launchCount);
+			editor.putLong(getResources().getString(R.string.launch_count_preference_string),
+					launchCount);
 			editor.commit();
 		}
 	}
 
 	/**
 	 * Show the rate dialog
-	 * 
+	 *
 	 * @param mContext
 	 * @param editor
 	 */
@@ -1082,8 +1085,7 @@ public class SpeedDialActivity extends Activity {
 		final View dialogView = inflater.inflate(R.layout.rate_app_dialog, null);
 		dialog.setContentView(dialogView);
 
-		Button rateAppButton = (Button) dialogView
-				.findViewById(R.id.rateAppButton);
+		Button rateAppButton = (Button) dialogView.findViewById(R.id.rateAppButton);
 		rateAppButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
 				/*
@@ -1094,36 +1096,34 @@ public class SpeedDialActivity extends Activity {
 				 * the user has rated the App, he/she can then click on never rate
 				 * again to stop the dialog to appear.
 				 */
-				editor.putLong(getResources().getString(
-						R.string.launch_count_preference_string), (-1)
-						* getResources().getInteger(R.integer.number_of_launches));
+				editor.putLong(getResources().getString(R.string.launch_count_preference_string),
+						(-1)
+								* getResources().getInteger(R.integer.number_of_launches));
 				editor.commit();
-				mContext.startActivity(new Intent(Intent.ACTION_VIEW, Uri
-						.parse("market://details?id="
+				mContext.startActivity(new Intent(Intent.ACTION_VIEW,
+						Uri.parse("market://details?id="
 								+ SpeedDialConstants.APP_PACKAGE)));
 
 				dialog.dismiss();
 			}
 		});
 
-		Button rateAppLaterButton = (Button) dialogView
-				.findViewById(R.id.rateAppLaterButton);
+		Button rateAppLaterButton = (Button) dialogView.findViewById(R.id.rateAppLaterButton);
 		rateAppLaterButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
-				editor.putLong(getResources().getString(
-						R.string.launch_count_preference_string), 0);
+				editor.putLong(getResources().getString(R.string.launch_count_preference_string),
+						0);
 				editor.commit();
 				dialog.dismiss();
 			}
 		});
 
-		Button neverShowAgainButton = (Button) dialogView
-				.findViewById(R.id.neverShowAgainButton);
+		Button neverShowAgainButton = (Button) dialogView.findViewById(R.id.neverShowAgainButton);
 		neverShowAgainButton.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
 				if (editor != null) {
-					editor.putBoolean(getResources().getString(
-							R.string.never_show_again_preference_string), true);
+					editor.putBoolean(getResources().getString(R.string.never_show_again_preference_string),
+							true);
 					editor.commit();
 				}
 				dialog.dismiss();
